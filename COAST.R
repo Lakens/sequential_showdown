@@ -1,31 +1,15 @@
-#TO DO: TOST lower bound - 99999 for one-sidedness
-# Create option to switch between one-sided and two-sided tests
-
-#Script to simulate studies and apply the Frequentist and Bayesian sequential sampling recommendation.
-
-#set.seed(2) #Set seed 2 to recreate simulation in manuscript
-if(!require(pscl)){install.packages('pscl')}
-library(pscl) 
-if(!require(MBESS)){install.packages('MBESS')}
-library(MBESS) 
-if(!require(pwr)){install.packages('pwr')}
-library(pwr) 
-if(!require(BayesFactor)){install.packages('BayesFactor')}
-library(BayesFactor) 
-if(!require(gsDesign)){install.packages('gsDesign')}
-library(gsDesign)
-
 options(scipen=999) #disable scientific notation for numbers
 
-#Simulation settings (n_sim, true effect size D)
-n_sim<-10000 #numbber of simulated studies
-true_d<-0.6 #True effect size (Keep SD below to 1, otherwise, this is just mean dif, not d)
+#Simulation settings
+n_sim<-100 #numbber of simulated studies
+true_d<-0.4 #True effect size when sd = 1 (for between) or 1/sqrt2) (for within)
 true_sd<-1/sqrt(2) #Set True standard deviation (set to 1 to make D cohen's d.
-lower_bound<-20 #After how any participants do you start to look? Frick calls this the lower bound 
+lower_bound<-60 #After how any participants do you start to look? Frick calls this the lower bound 
 
 #Sequential design settings NHST (alpha and # looks)
 n<-1000 #total number of datapoints (per condition) you are willing to collect
 sided <- 2 #Set whether tests are 1-sided or 2-sided
+paired_test<- TRUE
 
 #define some variables to store simulations after each n
 x<-numeric(n) #store all data group x
@@ -58,11 +42,11 @@ for (j in 1:n_sim){
     sd_y<-sd(y[1:i])
     cormat[j,i]<-cor(x,y)
     if (sided == 2){
-      z<-t.test(x[1:i],y[1:i], paired = TRUE, alternative = "two.sided", var.equal=TRUE, alpha = alpha_each_n) #perform the t-test
+      z<-t.test(x[1:i],y[1:i], paired = paired_test, alternative = "two.sided", var.equal=TRUE, alpha = alpha_each_n) #perform the t-test
       pmat[j,i]<-z$p.value #store all p-values for all simulations
     }
     if (sided == 1){
-      z<-t.test(x[1:i],y[1:i], paired = TRUE, alternative = "less", var.equal=TRUE, alpha = alpha_each_n) #perform the t-test
+      z<-t.test(x[1:i],y[1:i], paired = paired_test, alternative = "less", var.equal=TRUE, alpha = alpha_each_n) #perform the t-test
       pmat[j,i]<-z$p.value #store all p-values for all simulations
     }
     #d<-(mean_y-mean_x)/(sqrt((((length(x[1:i]) - 1)*((sd_x^2))) + (length(y[1:i]) - 1)*((sd_y^2)))/((length(x[1:i])+length(y[1:i])-2)))) #Cohen;s d for between designs
@@ -77,31 +61,6 @@ close(pb)
 
 
 #### INTERPRET SIMULATION RESULTS ----
-
-#COAST
-#COAST requires a minimum number of observations - Frick recommends not testing first 20. So these are dropped.  
-pmat_coast<-pmat
-pmat_coast[,1:lower_bound-1]<-NA
-
-#Find at which N first p<0.01 and first p > 0.36 is observed 
-#Results are not exactly the same. Not sure why, maybe because Frick writes:
-#"The value of t needed for p = .36 was computed from a linear average" - so he did not use p-values directly?
-n_first_sig<-apply(pmat_coast<0.01, 1, function(x) match(TRUE, x))
-n_first_nonsig<-apply(pmat_coast>0.36, 1, function(x) match(TRUE, x))
-#if NA no p-value below 0.01 or above 0.37) code as n
-n_first_sig[is.na(n_first_sig)] <- n
-n_first_nonsig[is.na(n_first_nonsig)] <- n
-
-coast_n_stop<-pmin(n_first_sig,n_first_nonsig)
-mean(coast_n_stop)
-
-coast_stop_high_before_low<-sum(n_first_sig>n_first_nonsig)/n_sim
-coast_stop_low_before_high<-sum(n_first_sig<n_first_nonsig)/n_sim
-coast_inconclusive<-1-coast_stop_high_before_low-coast_stop_low_before_high
-coast_stop_high_before_low #How often is p < 0.01 passed first
-coast_stop_low_before_high #How often is p > 0.36 passed first
-coast_inconclusive #How often does the p-value 0.01 < p < 0.036?
-
 
 #### Check if simulation returned the expected results----
 
@@ -123,3 +82,33 @@ mean(cormat)
 #check if effect size is correct
 dmat<-drop(dmat[,11:n])
 mean(dmat)
+
+#COAST results ----
+#COAST requires a minimum number of observations - Frick recommends not testing first 20. So these are dropped.  
+pmat_coast<-pmat
+pmat_coast[,1:lower_bound-1]<-NA
+
+#Find at which N first p<0.01 and first p > 0.36 is observed 
+#Results are not exactly the same. Not sure why, maybe because Frick writes:
+#"The value of t needed for p = .36 was computed from a linear average" - so he did not use p-values directly?
+#I'm assuming the difference in simulations is because of the t-value cut-off he used. 
+n_first_sig<-apply(pmat_coast<0.01, 1, function(x) match(TRUE, x))
+n_first_nonsig<-apply(pmat_coast>0.36, 1, function(x) match(TRUE, x))
+#if NA no p-value below 0.01 or above 0.36) code as n
+n_first_sig[is.na(n_first_sig)] <- n
+n_first_nonsig[is.na(n_first_nonsig)] <- n
+
+coast_n_stop<-pmin(n_first_sig,n_first_nonsig) #use pmin function to take lowest value (earliest stop)
+coast_mean_n<-mean(coast_n_stop) #calculate mean sample size for COAST procedure
+
+coast_stop_high_before_low<-sum(n_first_sig>n_first_nonsig)/n_sim
+coast_stop_low_before_high<-sum(n_first_sig<n_first_nonsig)/n_sim
+coast_inconclusive<-1-coast_stop_high_before_low-coast_stop_low_before_high
+coast_mean_n #How quickly would we stop?
+coast_stop_high_before_low #How often is p < 0.01 passed first
+coast_stop_low_before_high #How often is p > 0.36 passed first
+coast_inconclusive #How often does the p-value 0.01 < p < 0.036?
+
+cat("COAST would stop after",coast_mean_n,"participants, have",coast_stop_low_before_high,"power, and a Type 2 error rate of",coast_stop_high_before_low,"with",coast_inconclusive,"inconclusive results.")
+
+saveRDS(pmat, paste("pmat_d_",true_d,"_n_",n,"_n_sim_",n_sim,"_sided_",sided,"_paired_",paired_test,".Rdata", sep=""))
