@@ -23,7 +23,7 @@ pb <- winProgressBar(title = "progress bar", min = 0, max = n_sim, width = 300)
 for (j in 1:n_sim){
   setWinProgressBar(pb, j, title=paste( round(j/n_sim*100, 2), "% done"))
   for(i in 1:n){ #for each simulated experiment
-    #x[i]<-rnorm(n = 1, mean = 0, sd = true_sd)
+    x[i]<-rnorm(n = 1, mean = 0, sd = true_sd)
     y[i]<-rnorm(n = 1, mean = true_d, sd = true_sd) #Use D as a difference score, because sd=1 equals Cohen's D
   }  
   #xmat[j,]<-x
@@ -33,5 +33,5 @@ for (j in 1:n_sim){
 close(pb)
 
 #Store data
-#saveRDS(xmat, paste("xmat_d_",true_d,"_true_sd_",true_sd,"_n_",n,"_n_sim_",n_sim,".Rdata", sep=""))
+saveRDS(xmat, paste("xmat_d_",true_d,"_true_sd_",true_sd,"_n_",n,"_n_sim_",n_sim,".Rdata", sep=""))
 saveRDS(ymat, paste("ymat_d_",true_d,"_true_sd_",true_sd,"_n_",n,"_n_sim_",n_sim,".Rdata", sep=""))
